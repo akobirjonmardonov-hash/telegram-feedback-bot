@@ -59,7 +59,7 @@ async def anonymous(message: types.Message, state: FSMContext):
     await message.answer("Marhamat, murojaatingizni yozing:", reply_markup=types.ReplyKeyboardRemove())
     await Form.text.set()
 
-@dp.message_handler(state=Form.text)
+@dp.message_handler(content_types=types.ContentType.TEXT, state=Form.text)
 async def receive_text(message: types.Message, state: FSMContext):
     data = await state.get_data()
 
