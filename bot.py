@@ -1,5 +1,5 @@
 from aiogram import Bot, Dispatcher, executor, types
-from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
+from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
 from aiogram.dispatcher import FSMContext
 from aiogram.dispatcher.filters.state import State, StatesGroup
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
@@ -11,38 +11,37 @@ ADMIN_ID = int(os.getenv("ADMIN_ID"))
 bot = Bot(token=API_TOKEN)
 dp = Dispatcher(bot, storage=MemoryStorage())
 
-# ===== STATES =====
+# ================= STATES =================
 class Form(StatesGroup):
     category = State()
     identity = State()
     text = State()
 
-# ===== KEYBOARDS =====
+# ================= KEYBOARDS =================
 category_kb = ReplyKeyboardMarkup(resize_keyboard=True)
 category_kb.add("📢 Taklif", "⚠️ E’tiroz")
 
 identity_kb = ReplyKeyboardMarkup(resize_keyboard=True)
 identity_kb.add(
-    KeyboardButton("☎️ Raqam bilan", request_contact=True),
-    KeyboardButton("🕵️ Anonim")
+    KeyboardButton("📞 Raqamim bilan", request_contact=True),
+    KeyboardButton("🙈 Anonim")
 )
 
-# ===== HANDLERS =====
-@dp.message_handler(commands=["start"])
-async def start(message: types.Message):
+# ================= HANDLERS =================
+@dp.message_handler(commands=["start"], state="*")
+async def start(message: types.Message, state: FSMContext):
+    await state.finish()
     await message.answer(
         "Assalomu alaykum!\nTaklif yoki e’tirozingizni tanlang:",
         reply_markup=category_kb
     )
     await Form.category.set()
 
-@dp.message_handler(state=Form.category)
+@dp.message_handler(text=["📢 Taklif", "⚠️ E’tiroz"], state=Form.category)
 async def choose_category(message: types.Message, state: FSMContext):
-    if message.text not in ["📢 Taklif", "⚠️ E’tiroz"]:
-        return
     await state.update_data(category=message.text)
     await message.answer(
-        "Iltimos, raqam bilan yoki anonim tanlang:",
+        "Raqam bilan yuborasizmi yoki anonim?",
         reply_markup=identity_kb
     )
     await Form.identity.set()
@@ -50,13 +49,19 @@ async def choose_category(message: types.Message, state: FSMContext):
 @dp.message_handler(content_types=types.ContentType.CONTACT, state=Form.identity)
 async def with_phone(message: types.Message, state: FSMContext):
     await state.update_data(phone=message.contact.phone_number)
-    await message.answer("Marhamat, murojaatingizni yozing:", reply_markup=types.ReplyKeyboardRemove())
+    await message.answer(
+        "Marhamat, murojaatingizni yozing:",
+        reply_markup=ReplyKeyboardRemove()
+    )
     await Form.text.set()
 
-@dp.message_handler(lambda m: m.text == "🕵️ Anonim", state=Form.identity)
+@dp.message_handler(text="🙈 Anonim", state=Form.identity)
 async def anonymous(message: types.Message, state: FSMContext):
     await state.update_data(phone="Anonim")
-    await message.answer("Marhamat, murojaatingizni yozing:", reply_markup=types.ReplyKeyboardRemove())
+    await message.answer(
+        "Marhamat, murojaatingizni yozing:",
+        reply_markup=ReplyKeyboardRemove()
+    )
     await Form.text.set()
 
 @dp.message_handler(content_types=types.ContentType.TEXT, state=Form.text)
@@ -68,7 +73,7 @@ async def receive_text(message: types.Message, state: FSMContext):
         f"🆕 Yangi murojaat\n"
         f"📌 Turi: {data['category']}\n"
         f"📞 Aloqa: {data['phone']}\n"
-        f"👤 @{message.from_user.username}\n"
+        f"👤 @{message.from_user.username or 'username yo‘q'}\n"
         f"📝 {message.text}"
     )
 
@@ -79,5 +84,6 @@ async def receive_text(message: types.Message, state: FSMContext):
 
     await state.finish()
 
+# ================= START =================
 if __name__ == "__main__":
-    executor.start_polling(dp)
+    executor.start_polling(dp, skip_updates=True)
